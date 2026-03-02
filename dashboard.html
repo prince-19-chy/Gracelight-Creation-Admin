@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gracelight Creations — Admin Panel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Official Supabase JS v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * { font-family: 'Sora', sans-serif; }
+    body { background: #0f172a; color: white; }
+
+    .sidebar {
+      background: linear-gradient(180deg, rgba(15,23,42,0.97) 0%, rgba(30,27,75,0.97) 100%);
+      backdrop-filter: blur(10px);
+      border-right: 1px solid rgba(168,85,247,0.3);
+    }
+    .sidebar-link {
+      transition: all 0.25s ease;
+      border-left: 3px solid transparent;
+    }
+    .sidebar-link.active {
+      background: rgba(168,85,247,0.2);
+      border-left-color: #a78bfa;
+      color: #a78bfa;
+    }
+    .sidebar-link:hover:not(.active) { background: rgba(168,85,247,0.1); }
+
+    .card {
+      background: linear-gradient(145deg, rgba(30,27,75,0.5) 0%, rgba(15,23,42,0.8) 100%);
+      border: 1px solid rgba(168,85,247,0.3);
+      backdrop-filter: blur(10px);
+      border-radius: 1rem;
+      transition: all 0.3s ease;
+    }
+    .card:hover { border-color: rgba(168,85,247,0.7); transform: translateY(-2px); }
+
+    .btn-primary {
+      background: linear-gradient(to right, #a855f7, #ec4899);
+      transition: all 0.25s ease;
+    }
+    .btn-primary:hover { transform: scale(1.04); box-shadow: 0 0 18px rgba(168,85,247,0.5); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-secondary {
+      background: rgba(168,85,247,0.15);
+      border: 1px solid rgba(168,85,247,0.4);
+      transition: all 0.25s ease;
+    }
+    .btn-secondary:hover { background: rgba(168,85,247,0.3); }
+
+    .form-input {
+      background: rgba(15,23,42,0.8);
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: 0.75rem;
+      color: white;
+      transition: all 0.25s ease;
+    }
+    .form-input:focus {
+      border-color: #a78bfa;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(168,85,247,0.25);
+    }
+    .form-input option { background: #1e1b4b; }
+
+    .table-row {
+      border-bottom: 1px solid rgba(168,85,247,0.15);
+      transition: background 0.2s;
+    }
+    .table-row:hover { background: rgba(168,85,247,0.08); }
+
+    .modal-overlay {
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(4px);
+    }
+    .modal-box {
+      background: linear-gradient(145deg, #1e1b4b 0%, #0f172a 100%);
+      border: 1px solid rgba(168,85,247,0.5);
+    }
+
+    .badge-unread {
+      background: rgba(239,68,68,0.2);
+      color: #ef4444;
+      border: 1px solid rgba(239,68,68,0.4);
+    }
+    .badge-read {
+      background: rgba(34,197,94,0.2);
+      color: #22c55e;
+      border: 1px solid rgba(34,197,94,0.4);
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed; top: 20px; right: 20px; z-index: 9999;
+      transform: translateX(120%); transition: transform 0.35s cubic-bezier(.16,1,.3,1);
+    }
+    #toast.show { transform: translateX(0); }
+
+    /* Loading skeleton */
+    .skeleton {
+      background: linear-gradient(90deg, rgba(168,85,247,0.1) 25%, rgba(168,85,247,0.2) 50%, rgba(168,85,247,0.1) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 0.5rem;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+    /* Login page */
+    #login-page {
+      background: radial-gradient(ellipse at 50% 0%, rgba(168,85,247,0.3) 0%, transparent 60%), #0f172a;
+    }
+  </style>
+</head>
+<body class="h-screen overflow-hidden">
+
+<!-- ==================== TOAST ==================== -->
+<div id="toast">
+  <div class="px-6 py-4 rounded-xl bg-gradient-to-r from-purple-900/95 to-pink-900/95 border border-purple-500/50 shadow-2xl flex items-center gap-3 min-w-72">
+    <span id="toast-icon" class="text-2xl">✅</span>
+    <span id="toast-message" class="font-medium text-sm">Success!</span>
+  </div>
+</div>
+
+<!-- ==================== LOGIN PAGE ==================== -->
+<div id="login-page" class="h-screen flex items-center justify-center hidden">
+  <div class="card p-10 w-full max-w-md mx-4">
+    <div class="text-center mb-8">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-crown text-white text-2xl"></i>
+      </div>
+      <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">Gracelight Admin</h1>
+      <p class="text-gray-400 text-sm mt-1">Sign in to manage your website</p>
+    </div>
+    <form id="login-form" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium mb-2 text-gray-300">Email</label>
+        <input type="email" id="login-email" value="admin@gracelightcreations.com"
+          class="form-input w-full px-4 py-3" placeholder="admin@gracelight.com" required>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-2 text-gray-300">Password</label>
+        <input type="password" id="login-password" value="admin123"
+          class="form-input w-full px-4 py-3" placeholder="••••••••" required>
+      </div>
+      <button type="submit" id="login-btn" class="btn-primary w-full py-3 rounded-xl font-bold mt-2 flex items-center justify-center gap-2">
+        <i class="fas fa-sign-in-alt"></i> Sign In
+      </button>
+      <p id="login-error" class="text-red-400 text-sm text-center hidden"></p>
+    </form>
+    <p class="text-xs text-gray-500 text-center mt-6">
+      Default: admin@gracelightcreations.com / admin123
+    </p>
+  </div>
+</div>
+
+<!-- ==================== DASHBOARD ==================== -->
+<div id="dashboard" class="h-screen flex hidden">
+
+  <!-- Sidebar -->
+  <div class="sidebar w-72 flex-shrink-0 flex flex-col overflow-y-auto">
+    <div class="p-6 flex-1">
+      <div class="flex items-center gap-3 mb-8">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+          <i class="fas fa-crown text-white"></i>
+        </div>
+        <div>
+          <span class="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">Gracelight</span>
+          <span class="text-xs text-purple-400 block">Admin Panel</span>
+        </div>
+      </div>
+      <nav class="space-y-1">
+        <a href="#" data-section="dashboard" class="sidebar-link active flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 font-medium">
+          <i class="fas fa-home w-5 text-center"></i><span>Dashboard</span>
+        </a>
+        <a href="#" data-section="site-settings" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300">
+          <i class="fas fa-cog w-5 text-center"></i><span>Site Settings</span>
+        </a>
+        <a href="#" data-section="messages" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300">
+          <i class="fas fa-envelope w-5 text-center"></i><span>Messages</span>
+          <span id="unread-badge" class="ml-auto bg-red-500/20 text-red-400 text-xs px-2 py-0.5 rounded-full hidden">0</span>
+        </a>
+        <a href="#" data-section="stats" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300">
+          <i class="fas fa-chart-bar w-5 text-center"></i><span>Statistics</span>
+        </a>
+        <a href="#" data-section="services" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300">
+          <i class="fas fa-bolt w-5 text-center"></i><span>Services</span>
+        </a>
+        <a href="#" data-section="team" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300">
+          <i class="fas fa-users w-5 text-center"></i><span>Team Members</span>
+        </a>
+        <a href="#" data-section="testimonials" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300">
+          <i class="fas fa-star w-5 text-center"></i><span>Testimonials</span>
+        </a>
+        <a href="#" data-section="projects" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300">
+          <i class="fas fa-briefcase w-5 text-center"></i><span>Portfolio</span>
+        </a>
+        <a href="#" data-section="industries" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300">
+          <i class="fas fa-building w-5 text-center"></i><span>Industries</span>
+        </a>
+        <a href="#" data-section="pricing" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300">
+          <i class="fas fa-tag w-5 text-center"></i><span>Pricing Plans</span>
+        </a>
+        <a href="#" data-section="addons" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300">
+          <i class="fas fa-plus-circle w-5 text-center"></i><span>Add-ons</span>
+        </a>
+        <a href="#" data-section="faqs" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300">
+          <i class="fas fa-question-circle w-5 text-center"></i><span>FAQs</span>
+        </a>
+      </nav>
+    </div>
+    <!-- User info + logout -->
+    <div class="border-t border-purple-500/30 p-5">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-sm">
+          <i class="fas fa-user"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div id="admin-name" class="font-semibold text-sm truncate">Admin</div>
+          <div id="admin-email" class="text-xs text-gray-400 truncate">admin@gracelight.com</div>
+        </div>
+      </div>
+      <button id="logout-btn" class="btn-secondary w-full py-2 rounded-lg flex items-center justify-center gap-2 text-sm">
+        <i class="fas fa-sign-out-alt"></i> Logout
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 overflow-y-auto bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950/30">
+    <div class="p-8">
+
+      <!-- ---- DASHBOARD ---- -->
+      <section id="dashboard-section" class="section">
+        <h1 class="text-3xl font-bold mb-8">Dashboard Overview</h1>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="w-11 h-11 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                <i class="fas fa-envelope text-xl text-purple-400"></i>
+              </div>
+              <span class="text-xs text-gray-400">Total</span>
+            </div>
+            <div class="text-3xl font-bold" id="stat-total-messages">—</div>
+            <div class="text-xs text-gray-400 mt-1">Messages</div>
+          </div>
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="w-11 h-11 rounded-xl bg-pink-500/20 flex items-center justify-center">
+                <i class="fas fa-clock text-xl text-pink-400"></i>
+              </div>
+              <span class="text-xs text-gray-400">Unread</span>
+            </div>
+            <div class="text-3xl font-bold" id="stat-unread-messages">—</div>
+            <div class="text-xs text-gray-400 mt-1">Pending</div>
+          </div>
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="w-11 h-11 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                <i class="fas fa-briefcase text-xl text-blue-400"></i>
+              </div>
+              <span class="text-xs text-gray-400">Active</span>
+            </div>
+            <div class="text-3xl font-bold" id="stat-projects">—</div>
+            <div class="text-xs text-gray-400 mt-1">Projects</div>
+          </div>
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="w-11 h-11 rounded-xl bg-green-500/20 flex items-center justify-center">
+                <i class="fas fa-star text-xl text-green-400"></i>
+              </div>
+              <span class="text-xs text-gray-400">Rating</span>
+            </div>
+            <div class="text-3xl font-bold">4.9★</div>
+            <div class="text-xs text-gray-400 mt-1">Average</div>
+          </div>
+        </div>
+        <div class="grid lg:grid-cols-2 gap-6">
+          <div class="card p-6">
+            <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+              <i class="fas fa-envelope text-purple-400"></i> Recent Messages
+            </h2>
+            <div id="recent-messages-list" class="space-y-3">
+              <div class="skeleton h-12 w-full"></div>
+              <div class="skeleton h-12 w-full"></div>
+              <div class="skeleton h-12 w-full"></div>
+            </div>
+          </div>
+          <div class="card p-6">
+            <h2 class="text-lg font-bold mb-4">Quick Actions</h2>
+            <div class="grid grid-cols-2 gap-3">
+              <button onclick="App.switchSection('messages')" class="btn-secondary p-4 rounded-xl text-center">
+                <i class="fas fa-envelope text-xl mb-1 block text-purple-400"></i>
+                <span class="text-xs">Messages</span>
+              </button>
+              <button onclick="App.switchSection('site-settings')" class="btn-secondary p-4 rounded-xl text-center">
+                <i class="fas fa-cog text-xl mb-1 block text-purple-400"></i>
+                <span class="text-xs">Settings</span>
+              </button>
+              <button onclick="App.switchSection('projects')" class="btn-secondary p-4 rounded-xl text-center">
+                <i class="fas fa-plus text-xl mb-1 block text-purple-400"></i>
+                <span class="text-xs">Add Project</span>
+              </button>
+              <button onclick="App.switchSection('services')" class="btn-secondary p-4 rounded-xl text-center">
+                <i class="fas fa-bolt text-xl mb-1 block text-purple-400"></i>
+                <span class="text-xs">Services</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---- SITE SETTINGS ---- -->
+      <section id="site-settings-section" class="section hidden">
+        <h1 class="text-3xl font-bold mb-8">Site Settings</h1>
+        <div class="card p-8 max-w-2xl">
+          <form id="site-settings-form" class="space-y-5">
+            <div>
+              <label class="block text-sm font-medium mb-2">Hero Headline</label>
+              <input type="text" id="s-hero-headline" class="form-input w-full px-4 py-3" placeholder="Transform Your Digital...">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2">Hero Subheading</label>
+              <textarea id="s-hero-subheading" rows="3" class="form-input w-full px-4 py-3"></textarea>
+            </div>
+            <div class="grid md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium mb-2">Contact Email</label>
+                <input type="email" id="s-contact-email" class="form-input w-full px-4 py-3">
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-2">Contact Phone</label>
+                <input type="tel" id="s-contact-phone" class="form-input w-full px-4 py-3">
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2">WhatsApp Number (no + or spaces)</label>
+              <input type="tel" id="s-whatsapp" class="form-input w-full px-4 py-3" placeholder="9779807007817">
+            </div>
+            <button type="submit" class="btn-primary px-8 py-3 rounded-xl font-bold flex items-center gap-2">
+              <i class="fas fa-save"></i> Save Settings
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ---- MESSAGES ---- -->
+      <section id="messages-section" class="section hidden">
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-3xl font-bold">Messages</h1>
+          <button onclick="DB.markAllRead()" class="btn-secondary px-5 py-2 rounded-xl text-sm flex items-center gap-2">
+            <i class="fas fa-check-double"></i> Mark All Read
+          </button>
+        </div>
+        <div class="card p-6">
+          <div id="messages-list" class="space-y-3">
+            <div class="skeleton h-20 w-full"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---- STATS ---- -->
+      <section id="stats-section" class="section hidden">
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-3xl font-bold">Statistics</h1>
+          <button onclick="Modal.openStat()" class="btn-primary px-5 py-2 rounded-xl text-sm flex items-center gap-2">
+            <i class="fas fa-plus"></i> Add Stat
+          </button>
+        </div>
+        <div class="card p-6"><div id="stats-list" class="space-y-3"></div></div>
+      </section>
+
+      <!-- ---- SERVICES ---- -->
+      <section id="services-section" class="section hidden">
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-3xl font-bold">Services</h1>
+          <button onclick="Modal.openService()" class="btn-primary px-5 py-2 rounded-xl text-sm flex items-center gap-2">
+            <i class="fas fa-plus"></i> Add Service
+          </button>
+        </div>
+        <div class="card p-6"><div id="services-list" class="space-y-3"></div></div>
+      </section>
+
+      <!-- ---- TEAM ---- -->
+      <section id="team-section" class="section hidden">
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-3xl font-bold">Team Members</h1>
+          <button onclick="Modal.openTeam()" class="btn-primary px-5 py-2 rounded-xl text-sm flex items-center gap-2">
+            <i class="fas fa-plus"></i> Add Member
+          </button>
+        </div>
+        <div class="card p-6"><div id="team-list" class="space-y-3"></div></div>
+      </section>
+
+      <!-- ---- TESTIMONIALS ---- -->
+      <section id="testimonials-section" class="section hidden">
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-3xl font-bold">Testimonials</h1>
+          <button onclick="Modal.openTestimonial()" class="btn-primary px-5 py-2 rounded-xl text-sm flex items-center gap-2">
+            <i class="fas fa-plus"></i> Add Testimonial
+          </button>
+        </div>
+        <div class="card p-6"><div id="testimonials-list" class="space-y-3"></div></div>
+      </section>
+
+      <!-- ---- PROJECTS ---- -->
+      <section id="projects-section" class="section hidden">
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-3xl font-bold">Portfolio Projects</h1>
+          <button onclick="Modal.openProject()" class="btn-primary px-5 py-2 rounded-xl text-sm flex items-center gap-2">
+            <i class="fas fa-plus"></i> Add Project
+          </button>
+        </div>
+        <div class="card p-6"><div id="projects-list" class="space-y-3"></div></div>
+      </section>
+
+      <!-- ---- INDUSTRIES ---- -->
+      <section id="industries-section" class="section hidden">
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-3xl font-bold">Industries</h1>
+          <button onclick="Modal.openIndustry()" class="btn-primary px-5 py-2 rounded-xl text-sm flex items-center gap-2">
+            <i class="fas fa-plus"></i> Add Industry
+          </button>
+        </div>
+        <div class="card p-6"><div id="industries-list" class="space-y-3"></div></div>
+      </section>
+
+      <!-- ---- PRICING ---- -->
+      <section id="pricing-section" class="section hidden">
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-3xl font-bold">Pricing Plans</h1>
+          <button onclick="Modal.openPricing()" class="btn-primary px-5 py-2 rounded-xl text-sm flex items-center gap-2">
+            <i class="fas fa-plus"></i> Add Plan
+          </button>
+        </div>
+        <div class="card p-6"><div id="pricing-list" class="space-y-3"></div></div>
+      </section>
+
+      <!-- ---- ADD-ONS ---- -->
+      <section id="addons-section" class="section hidden">
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-3xl font-bold">Add-ons</h1>
+          <button onclick="Modal.openAddon()" class="btn-primary px-5 py-2 rounded-xl text-sm flex items-center gap-2">
+            <i class="fas fa-plus"></i> Add Add-on
+          </button>
+        </div>
+        <div class="card p-6"><div id="addons-list" class="space-y-3"></div></div>
+      </section>
+
+      <!-- ---- FAQS ---- -->
+      <section id="faqs-section" class="section hidden">
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-3xl font-bold">FAQs</h1>
+          <button onclick="Modal.openFaq()" class="btn-primary px-5 py-2 rounded-xl text-sm flex items-center gap-2">
+            <i class="fas fa-plus"></i> Add FAQ
+          </button>
+        </div>
+        <div class="card p-6"><div id="faqs-list" class="space-y-3"></div></div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL CONTAINER ==================== -->
+<div id="modal-root"></div>
+
+<!-- ==================== SCRIPTS ==================== -->
+<script>
+// ============================================================
+// CONFIG — Replace with your own Supabase project values
+// ============================================================
+const SUPABASE_URL  = 'https://coyyouxyoqeqtmvcjlng.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNveXlvdXh5b3FlcXRtdmNqbG5nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzNjQ5MDYsImV4cCI6MjA4Nzk0MDkwNn0.IxvPhqWjIjycZVhvsV0xTiplBZ0CCxr-8o34izzZXSQ';
+
+// ============================================================
+// SUPABASE CLIENT
+// ============================================================
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ============================================================
+// TOAST UTILITY
+// ============================================================
+const Toast = {
+  show(msg, type = 'success') {
+    const el  = document.getElementById('toast');
+    const ico = document.getElementById('toast-icon');
+    const txt = document.getElementById('toast-message');
+    ico.textContent = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+    txt.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(Toast._timer);
+    Toast._timer = setTimeout(() => el.classList.remove('show'), 3200);
+  }
+};
+
+// ============================================================
+// IN-MEMORY CACHE
+// ============================================================
+const Cache = {
+  messages: [], stats: [], services: [], team: [],
+  testimonials: [], projects: [], industries: [],
+  pricing: [], addons: [], faqs: [], settings: null
+};
+
+// ============================================================
+// AUTH MODULE
+// ============================================================
+const Auth = {
+  user: null,
+
+  async init() {
+    const saved = sessionStorage.getItem('gl_admin');
+    if (saved) {
+      Auth.user = JSON.parse(saved);
+      App.showDashboard();
+    } else {
+      App.showLogin();
+    }
+  },
+
+  async login(email, password) {
+    // Simple credential check against admin_users table
+    const { data, error } = await sb
+      .from('admin_users')
+      .select('id, name, email')
+      .eq('email', email)
+      .eq('password_hash', password)  // In production: compare bcrypt hash
+      .single();
+
+    if (error || !data) throw new Error('Invalid email or password');
+    Auth.user = data;
+    sessionStorage.setItem('gl_admin', JSON.stringify(data));
+    return data;
+  },
+
+  logout() {
+    Auth.user = null;
+    sessionStorage.removeItem('gl_admin');
+    App.showLogin();
+  }
+};
+
+// ============================================================
+// DATABASE MODULE — all Supabase operations
+// ============================================================
+const DB = {
+  // ---- Generic helpers ----
+  async getAll(table, orderCol = 'display_order') {
+    const { data, error } = await sb.from(table).select('*').order(orderCol);
+    if (error) throw error;
+    return data || [];
+  },
+
+  async insert(table, payload) {
+    const { data, error } = await sb.from(table).insert([payload]).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async update(table, id, payload) {
+    const { data, error } = await sb.from(table).update(payload).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async remove(table, id) {
+    const { error } = await sb.from(table).delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  async toggle(table, id, field, current) {
+    return DB.update(table, id, { [field]: !current });
+  },
+
+  // ---- Specialised ----
+  async loadAll() {
+    const [messages, stats, services, team, testimonials,
+           projects, industries, pricing, addons, faqs] = await Promise.all([
+      sb.from('messages').select('*').order('created_at', { ascending: false }),
+      sb.from('stats').select('*').order('display_order'),
+      sb.from('services').select('*').order('display_order'),
+      sb.from('team_members').select('*').order('display_order'),
+      sb.from('testimonials').select('*').order('display_order'),
+      sb.from('projects').select('*').order('display_order'),
+      sb.from('industries').select('*').order('display_order'),
+      sb.from('pricing_plans').select('*').order('display_order'),
+      sb.from('addons').select('*').order('display_order'),
+      sb.from('faqs').select('*').order('display_order'),
+    ]);
+
+    Cache.messages     = messages.data     || [];
+    Cache.stats        = stats.data        || [];
+    Cache.services     = services.data     || [];
+    Cache.team         = team.data         || [];
+    Cache.testimonials = testimonials.data || [];
+    Cache.projects     = projects.data     || [];
+    Cache.industries   = industries.data   || [];
+    Cache.pricing      = pricing.data      || [];
+    Cache.addons       = addons.data       || [];
+    Cache.faqs         = faqs.data         || [];
+
+    // Load settings separately
+    const { data: settings } = await sb.from('site_settings').select('*').eq('id', 1).single();
+    Cache.settings = settings;
+
+    Render.all();
+  },
+
+  async markAllRead() {
+    const { error } = await sb.from('messages').update({ status: 'read' }).eq('status', 'unread');
+    if (error) { Toast.show('Error updating messages', 'error'); return; }
+    Toast.show('All messages marked as read');
+    await DB.loadAll();
+  },
+
+  async markRead(id) {
+    await DB.update('messages', id, { status: 'read' });
+    Toast.show('Marked as read');
+    await DB.loadAll();
+  },
+
+  async deleteMsg(id) {
+    if (!confirm('Delete this message?')) return;
+    await DB.remove('messages', id);
+    Toast.show('Message deleted');
+    await DB.loadAll();
+  },
+
+  async saveSettings(data) {
+    const { error } = await sb.from('site_settings').update(data).eq('id', 1);
+    if (error) throw error;
+  }
+};
+
+// ============================================================
+// RENDER MODULE — turns Cache data into HTML
+// ============================================================
+const Render = {
+  all() {
+    Render.dashboard();
+    Render.messages();
+    Render.stats();
+    Render.services();
+    Render.team();
+    Render.testimonials();
+    Render.projects();
+    Render.industries();
+    Render.pricing();
+    Render.addons();
+    Render.faqs();
+    Render.settings();
+  },
+
+  // Reusable action buttons
+  actions(table, id, active, editFn) {
+    return `
+      <div class="flex gap-2 flex-shrink-0">
+        <button onclick="${editFn}(${id})" title="Edit"
+          class="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/40 flex items-center justify-center transition-all">
+          <i class="fas fa-edit text-xs"></i>
+        </button>
+        <button onclick="DB.toggle('${table}', ${id}, 'active', ${active}).then(() => { Toast.show('Updated'); DB.loadAll(); })"
+          title="${active ? 'Deactivate' : 'Activate'}"
+          class="w-8 h-8 rounded-lg ${active ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/40' : 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/40'} flex items-center justify-center transition-all">
+          <i class="fas ${active ? 'fa-eye' : 'fa-eye-slash'} text-xs"></i>
+        </button>
+        <button onclick="confirmDelete('${table}', ${id})" title="Delete"
+          class="w-8 h-8 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/40 flex items-center justify-center transition-all">
+          <i class="fas fa-trash text-xs"></i>
+        </button>
+      </div>`;
+  },
+
+  emptyState(msg) {
+    return `<div class="text-center py-12 text-gray-500"><i class="fas fa-inbox text-4xl mb-3 block opacity-30"></i>${msg}</div>`;
+  },
+
+  dashboard() {
+    const unread = Cache.messages.filter(m => m.status === 'unread').length;
+    setText('stat-total-messages', Cache.messages.length);
+    setText('stat-unread-messages', unread);
+    setText('stat-projects', Cache.projects.filter(p => p.active).length);
+
+    // Unread badge
+    const badge = document.getElementById('unread-badge');
+    if (unread > 0) { badge.textContent = unread; badge.classList.remove('hidden'); }
+    else badge.classList.add('hidden');
+
+    // Recent messages
+    const recent = Cache.messages.slice(0, 5);
+    document.getElementById('recent-messages-list').innerHTML = recent.length
+      ? recent.map(m => `
+          <div class="flex items-center justify-between p-3 rounded-lg ${m.status === 'unread' ? 'bg-purple-500/10' : 'bg-slate-800/30'}">
+            <div class="min-w-0">
+              <div class="font-semibold text-sm truncate">${esc(m.name)}</div>
+              <div class="text-xs text-gray-400 truncate">${esc(m.message.substring(0, 60))}…</div>
+            </div>
+            <span class="ml-3 text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${m.status === 'unread' ? 'badge-unread' : 'badge-read'}">${m.status}</span>
+          </div>`).join('')
+      : '<p class="text-gray-500 text-sm text-center py-4">No messages yet</p>';
+  },
+
+  messages() {
+    const el = document.getElementById('messages-list');
+    if (!Cache.messages.length) { el.innerHTML = Render.emptyState('No messages yet'); return; }
+    el.innerHTML = Cache.messages.map(m => `
+      <div class="table-row p-4 rounded-lg ${m.status === 'unread' ? 'bg-purple-500/8' : ''}">
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-2 mb-1">
+              <span class="font-semibold">${esc(m.name)}</span>
+              <span class="text-sm text-gray-400">${esc(m.email)}</span>
+              ${m.phone ? `<span class="text-sm text-gray-400">${esc(m.phone)}</span>` : ''}
+              <span class="text-xs px-2 py-0.5 rounded-full ${m.status === 'unread' ? 'badge-unread' : 'badge-read'}">${m.status}</span>
+            </div>
+            <p class="text-gray-300 text-sm mb-1">${esc(m.message)}</p>
+            <div class="text-xs text-gray-500">Service: ${esc(m.service || 'Not specified')} · ${new Date(m.created_at).toLocaleString()}</div>
+          </div>
+          <div class="flex gap-2 flex-shrink-0">
+            ${m.status === 'unread' ? `
+              <button onclick="DB.markRead(${m.id})" title="Mark read"
+                class="w-8 h-8 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/40 flex items-center justify-center transition-all">
+                <i class="fas fa-check text-xs"></i>
+              </button>` : ''}
+            <button onclick="DB.deleteMsg(${m.id})" title="Delete"
+              class="w-8 h-8 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/40 flex items-center justify-center transition-all">
+              <i class="fas fa-trash text-xs"></i>
+            </button>
+          </div>
+        </div>
+      </div>`).join('');
+  },
+
+  stats() {
+    const el = document.getElementById('stats-list');
+    if (!Cache.stats.length) { el.innerHTML = Render.emptyState('No stats yet'); return; }
+    el.innerHTML = Cache.stats.map(s => `
+      <div class="table-row p-4 rounded-lg flex items-center justify-between gap-4">
+        <div class="flex items-center gap-4 flex-1 min-w-0">
+          <span class="font-semibold truncate">${esc(s.label)}</span>
+          <span class="text-purple-400 font-bold">${s.value}${esc(s.suffix)}</span>
+          ${!s.active ? '<span class="text-xs bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full">Hidden</span>' : ''}
+        </div>
+        ${Render.actions('stats', s.id, s.active, 'Modal.editStat')}
+      </div>`).join('');
+  },
+
+  services() {
+    const el = document.getElementById('services-list');
+    if (!Cache.services.length) { el.innerHTML = Render.emptyState('No services yet'); return; }
+    el.innerHTML = Cache.services.map(s => `
+      <div class="table-row p-4 rounded-lg flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <span class="text-2xl">${s.icon}</span>
+          <div class="min-w-0">
+            <div class="font-semibold truncate">${esc(s.title)}</div>
+            <div class="text-xs text-gray-400">${(s.features||[]).length} features</div>
+          </div>
+          ${s.is_popular ? '<span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full flex-shrink-0">Popular</span>' : ''}
+          ${!s.active ? '<span class="text-xs bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full flex-shrink-0">Hidden</span>' : ''}
+        </div>
+        ${Render.actions('services', s.id, s.active, 'Modal.editService')}
+      </div>`).join('');
+  },
+
+  team() {
+    const el = document.getElementById('team-list');
+    if (!Cache.team.length) { el.innerHTML = Render.emptyState('No team members yet'); return; }
+    el.innerHTML = Cache.team.map(m => `
+      <div class="table-row p-4 rounded-lg flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <div class="w-9 h-9 rounded-full bg-gradient-to-br ${m.color_gradient} flex items-center justify-center font-bold text-sm flex-shrink-0">${esc(m.initials)}</div>
+          <div class="min-w-0">
+            <div class="font-semibold truncate">${esc(m.name)}</div>
+            <div class="text-xs text-gray-400">${esc(m.role)}</div>
+          </div>
+          ${!m.active ? '<span class="text-xs bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full flex-shrink-0">Hidden</span>' : ''}
+        </div>
+        ${Render.actions('team_members', m.id, m.active, 'Modal.editTeam')}
+      </div>`).join('');
+  },
+
+  testimonials() {
+    const el = document.getElementById('testimonials-list');
+    if (!Cache.testimonials.length) { el.innerHTML = Render.emptyState('No testimonials yet'); return; }
+    el.innerHTML = Cache.testimonials.map(t => `
+      <div class="table-row p-4 rounded-lg flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <div class="w-9 h-9 rounded-full bg-gradient-to-br ${t.color_gradient} flex items-center justify-center font-bold text-sm flex-shrink-0">${esc(t.initials)}</div>
+          <div class="min-w-0">
+            <div class="font-semibold truncate">${esc(t.client_name)}</div>
+            <div class="text-xs text-gray-400">${esc(t.client_company)}</div>
+          </div>
+          <span class="text-yellow-400 text-sm flex-shrink-0">${'★'.repeat(t.rating)}</span>
+          ${!t.active ? '<span class="text-xs bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full flex-shrink-0">Hidden</span>' : ''}
+        </div>
+        ${Render.actions('testimonials', t.id, t.active, 'Modal.editTestimonial')}
+      </div>`).join('');
+  },
+
+  projects() {
+    const el = document.getElementById('projects-list');
+    if (!Cache.projects.length) { el.innerHTML = Render.emptyState('No projects yet'); return; }
+    el.innerHTML = Cache.projects.map(p => `
+      <div class="table-row p-4 rounded-lg flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <span class="text-2xl">${p.icon}</span>
+          <div class="min-w-0">
+            <div class="font-semibold truncate">${esc(p.title)}</div>
+            <div class="text-xs text-gray-400 capitalize">${esc(p.category)}</div>
+          </div>
+          ${p.featured ? '<span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full flex-shrink-0">Featured</span>' : ''}
+          ${!p.active ? '<span class="text-xs bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full flex-shrink-0">Hidden</span>' : ''}
+        </div>
+        ${Render.actions('projects', p.id, p.active, 'Modal.editProject')}
+      </div>`).join('');
+  },
+
+  industries() {
+    const el = document.getElementById('industries-list');
+    if (!Cache.industries.length) { el.innerHTML = Render.emptyState('No industries yet'); return; }
+    el.innerHTML = Cache.industries.map(i => `
+      <div class="table-row p-4 rounded-lg flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <span class="text-2xl">${i.icon}</span>
+          <span class="font-semibold truncate">${esc(i.name)}</span>
+          ${!i.active ? '<span class="text-xs bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full flex-shrink-0">Hidden</span>' : ''}
+        </div>
+        ${Render.actions('industries', i.id, i.active, 'Modal.editIndustry')}
+      </div>`).join('');
+  },
+
+  pricing() {
+    const el = document.getElementById('pricing-list');
+    if (!Cache.pricing.length) { el.innerHTML = Render.emptyState('No pricing plans yet'); return; }
+    el.innerHTML = Cache.pricing.map(p => `
+      <div class="table-row p-4 rounded-lg flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <span class="font-semibold">${esc(p.name)}</span>
+          <span class="text-purple-400">${p.currency} ${p.price.toLocaleString()}</span>
+          <span class="text-xs text-gray-400">/${p.interval}</span>
+          ${p.is_popular ? '<span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">Popular</span>' : ''}
+          ${!p.active ? '<span class="text-xs bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full">Hidden</span>' : ''}
+        </div>
+        ${Render.actions('pricing_plans', p.id, p.active, 'Modal.editPricing')}
+      </div>`).join('');
+  },
+
+  addons() {
+    const el = document.getElementById('addons-list');
+    if (!Cache.addons.length) { el.innerHTML = Render.emptyState('No add-ons yet'); return; }
+    el.innerHTML = Cache.addons.map(a => `
+      <div class="table-row p-4 rounded-lg flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <span class="text-2xl">${a.icon}</span>
+          <span class="font-semibold truncate">${esc(a.name)}</span>
+          <span class="text-purple-400">Rs ${a.price.toLocaleString()}</span>
+          <span class="text-xs text-gray-400">${esc(a.price_text || '')}</span>
+          ${!a.active ? '<span class="text-xs bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full flex-shrink-0">Hidden</span>' : ''}
+        </div>
+        ${Render.actions('addons', a.id, a.active, 'Modal.editAddon')}
+      </div>`).join('');
+  },
+
+  faqs() {
+    const el = document.getElementById('faqs-list');
+    if (!Cache.faqs.length) { el.innerHTML = Render.emptyState('No FAQs yet'); return; }
+    el.innerHTML = Cache.faqs.map(f => `
+      <div class="table-row p-4 rounded-lg flex items-center justify-between gap-4">
+        <div class="flex-1 min-w-0">
+          <div class="font-semibold truncate">${esc(f.question)}</div>
+          <div class="text-xs text-gray-400 capitalize">${f.category}</div>
+        </div>
+        ${Render.actions('faqs', f.id, f.active, 'Modal.editFaq')}
+      </div>`).join('');
+  },
+
+  settings() {
+    if (!Cache.settings) return;
+    const s = Cache.settings;
+    setVal('s-hero-headline', s.hero_headline || '');
+    setVal('s-hero-subheading', s.hero_subheading || '');
+    setVal('s-contact-email', s.contact_email || '');
+    setVal('s-contact-phone', s.contact_phone || '');
+    setVal('s-whatsapp', s.whatsapp_number || '');
+  }
+};
+
+// ============================================================
+// MODAL MODULE — reusable modal builder
+// ============================================================
+const Modal = {
+  // Shared gradient options
+  gradients: [
+    'from-purple-500 to-pink-500',
+    'from-blue-500 to-cyan-500',
+    'from-green-500 to-emerald-500',
+    'from-orange-500 to-red-500',
+    'from-yellow-500 to-amber-500'
+  ],
+
+  // Render a modal into #modal-root
+  render(id, title, formHtml, onSubmit) {
+    document.getElementById('modal-root').innerHTML = `
+      <div id="${id}" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="modal-box max-w-2xl w-full rounded-3xl p-8 max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold">${title}</h2>
+            <button onclick="Modal.close('${id}')" class="w-8 h-8 rounded-lg bg-gray-500/20 hover:bg-gray-500/40 flex items-center justify-center transition-all">
+              <i class="fas fa-times text-sm"></i>
+            </button>
+          </div>
+          <form id="modal-form" class="space-y-4">
+            ${formHtml}
+            <div class="flex gap-3 pt-2">
+              <button type="submit" class="btn-primary flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2">
+                <i class="fas fa-save"></i> Save
+              </button>
+              <button type="button" onclick="Modal.close('${id}')" class="btn-secondary flex-1 py-3 rounded-xl">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+    document.getElementById('modal-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('[type=submit]');
+      btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+      try {
+        await onSubmit();
+        Modal.close(id);
+        await DB.loadAll();
+      } catch (err) {
+        Toast.show(err.message || 'Error saving', 'error');
+      } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save';
+      }
+    });
+  },
+
+  close(id) {
+    document.getElementById(id)?.remove();
+  },
+
+  field(label, inputHtml) {
+    return `<div><label class="block text-sm font-medium mb-2 text-gray-300">${label}</label>${inputHtml}</div>`;
+  },
+
+  input(id, value = '', type = 'text', placeholder = '') {
+    return `<input type="${type}" id="${id}" value="${esc(value)}" placeholder="${placeholder}" class="form-input w-full px-4 py-3">`;
+  },
+
+  textarea(id, value = '', rows = 3) {
+    return `<textarea id="${id}" rows="${rows}" class="form-input w-full px-4 py-3">${esc(value)}</textarea>`;
+  },
+
+  select(id, options, selected = '') {
+    const opts = options.map(([v, l]) => `<option value="${v}" ${v === selected ? 'selected' : ''}>${l}</option>`).join('');
+    return `<select id="${id}" class="form-input w-full px-4 py-3">${opts}</select>`;
+  },
+
+  checkbox(id, checked, label) {
+    return `<div class="flex items-center gap-3"><input type="checkbox" id="${id}" ${checked ? 'checked' : ''} class="w-4 h-4 accent-purple-500"><label for="${id}" class="text-sm font-medium">${label}</label></div>`;
+  },
+
+  gradientSelect(id, selected = '') {
+    const opts = Modal.gradients.map(g => `<option value="${g}" ${g === selected ? 'selected' : ''}>${g}</option>`).join('');
+    return `<select id="${id}" class="form-input w-full px-4 py-3">${opts}</select>`;
+  },
+
+  // ---- Stat ----
+  openStat(id) {
+    const data = id ? Cache.stats.find(s => s.id === id) : null;
+    const title = data ? 'Edit Stat' : 'Add Stat';
+    Modal.render('stat-modal', title, `
+      <input type="hidden" id="m-id" value="${data?.id || ''}">
+      ${Modal.field('Label', Modal.input('m-label', data?.label))}
+      ${Modal.field('Value', Modal.input('m-value', data?.value, 'number'))}
+      ${Modal.field('Suffix (+ % ★ etc.)', Modal.input('m-suffix', data?.suffix || '+'))}
+      ${Modal.field('Display Order', Modal.input('m-order', data?.display_order ?? (Cache.stats.length + 1), 'number'))}
+    `, async () => {
+      const payload = {
+        label: val('m-label'), value: +val('m-value'),
+        suffix: val('m-suffix'), display_order: +val('m-order'), active: true
+      };
+      if (!payload.label) throw new Error('Label is required');
+      const mid = val('m-id');
+      if (mid) await DB.update('stats', mid, payload);
+      else await DB.insert('stats', payload);
+      Toast.show(`Stat ${mid ? 'updated' : 'added'} ✓`);
+    });
+  },
+  editStat(id) { Modal.openStat(id); },
+
+  // ---- Service ----
+  openService(id) {
+    const data = id ? Cache.services.find(s => s.id === id) : null;
+    const title = data ? 'Edit Service' : 'Add Service';
+    Modal.render('service-modal', title, `
+      <input type="hidden" id="m-id" value="${data?.id || ''}">
+      ${Modal.field('Title', Modal.input('m-title', data?.title))}
+      ${Modal.field('Description', Modal.textarea('m-desc', data?.description))}
+      ${Modal.field('Icon (emoji)', Modal.input('m-icon', data?.icon || '🎨'))}
+      ${Modal.field('Features (one per line)', Modal.textarea('m-features', (data?.features || []).join('\n'), 5))}
+      ${Modal.checkbox('m-popular', data?.is_popular, 'Mark as Popular')}
+      ${Modal.field('Display Order', Modal.input('m-order', data?.display_order ?? (Cache.services.length + 1), 'number'))}
+    `, async () => {
+      const payload = {
+        title: val('m-title'), description: val('m-desc'), icon: val('m-icon'),
+        features: val('m-features').split('\n').map(f => f.trim()).filter(Boolean),
+        is_popular: document.getElementById('m-popular').checked,
+        display_order: +val('m-order'), active: true
+      };
+      if (!payload.title) throw new Error('Title is required');
+      const mid = val('m-id');
+      if (mid) await DB.update('services', mid, payload);
+      else await DB.insert('services', payload);
+      Toast.show(`Service ${mid ? 'updated' : 'added'} ✓`);
+    });
+  },
+  editService(id) { Modal.openService(id); },
+
+  // ---- Team ----
+  openTeam(id) {
+    const data = id ? Cache.team.find(m => m.id === id) : null;
+    const title = data ? 'Edit Team Member' : 'Add Team Member';
+    Modal.render('team-modal', title, `
+      <input type="hidden" id="m-id" value="${data?.id || ''}">
+      ${Modal.field('Name', Modal.input('m-name', data?.name))}
+      ${Modal.field('Role', Modal.input('m-role', data?.role))}
+      ${Modal.field('Bio', Modal.textarea('m-bio', data?.bio))}
+      ${Modal.field('Initials (2 chars)', Modal.input('m-initials', data?.initials))}
+      ${Modal.field('Color Gradient', Modal.gradientSelect('m-gradient', data?.color_gradient))}
+      ${Modal.field('Display Order', Modal.input('m-order', data?.display_order ?? (Cache.team.length + 1), 'number'))}
+    `, async () => {
+      const payload = {
+        name: val('m-name'), role: val('m-role'), bio: val('m-bio'),
+        initials: val('m-initials').toUpperCase().slice(0, 2),
+        color_gradient: val('m-gradient'), display_order: +val('m-order'), active: true
+      };
+      if (!payload.name) throw new Error('Name is required');
+      const mid = val('m-id');
+      if (mid) await DB.update('team_members', mid, payload);
+      else await DB.insert('team_members', payload);
+      Toast.show(`Team member ${mid ? 'updated' : 'added'} ✓`);
+    });
+  },
+  editTeam(id) { Modal.openTeam(id); },
+
+  // ---- Testimonial ----
+  openTestimonial(id) {
+    const data = id ? Cache.testimonials.find(t => t.id === id) : null;
+    const title = data ? 'Edit Testimonial' : 'Add Testimonial';
+    Modal.render('testimonial-modal', title, `
+      <input type="hidden" id="m-id" value="${data?.id || ''}">
+      ${Modal.field('Client Name', Modal.input('m-name', data?.client_name))}
+      ${Modal.field('Role (optional)', Modal.input('m-role', data?.client_role))}
+      ${Modal.field('Company', Modal.input('m-company', data?.client_company))}
+      ${Modal.field('Testimonial Content', Modal.textarea('m-content', data?.content, 4))}
+      ${Modal.field('Rating (1–5)', Modal.input('m-rating', data?.rating || 5, 'number'))}
+      ${Modal.field('Initials', Modal.input('m-initials', data?.initials))}
+      ${Modal.field('Color Gradient', Modal.gradientSelect('m-gradient', data?.color_gradient))}
+      ${Modal.field('Display Order', Modal.input('m-order', data?.display_order ?? (Cache.testimonials.length + 1), 'number'))}
+    `, async () => {
+      const payload = {
+        client_name: val('m-name'), client_role: val('m-role') || null,
+        client_company: val('m-company'), content: val('m-content'),
+        rating: Math.min(5, Math.max(1, +val('m-rating'))),
+        initials: val('m-initials').toUpperCase().slice(0, 2),
+        color_gradient: val('m-gradient'), display_order: +val('m-order'), active: true
+      };
+      if (!payload.client_name) throw new Error('Client name is required');
+      const mid = val('m-id');
+      if (mid) await DB.update('testimonials', mid, payload);
+      else await DB.insert('testimonials', payload);
+      Toast.show(`Testimonial ${mid ? 'updated' : 'added'} ✓`);
+    });
+  },
+  editTestimonial(id) { Modal.openTestimonial(id); },
+
+  // ---- Project ----
+  openProject(id) {
+    const data = id ? Cache.projects.find(p => p.id === id) : null;
+    const title = data ? 'Edit Project' : 'Add Project';
+    Modal.render('project-modal', title, `
+      <input type="hidden" id="m-id" value="${data?.id || ''}">
+      ${Modal.field('Title', Modal.input('m-title', data?.title))}
+      ${Modal.field('Category', Modal.select('m-cat', [['videos','Videos'],['websites','Websites'],['graphics','Graphics'],['logos','Logos']], data?.category))}
+      ${Modal.field('Description', Modal.textarea('m-desc', data?.description, 2))}
+      ${Modal.field('Icon (emoji)', Modal.input('m-icon', data?.icon || '🎨'))}
+      ${Modal.field('Client', Modal.input('m-client', data?.client))}
+      ${Modal.field('Objective', Modal.textarea('m-objective', data?.objective, 2))}
+      ${Modal.field('Results', Modal.textarea('m-results', data?.results, 2))}
+      ${Modal.field('Tools Used', Modal.input('m-tools', data?.tools))}
+      ${Modal.field('External Link', Modal.input('m-link', data?.external_link, 'url'))}
+      ${Modal.checkbox('m-featured', data?.featured, 'Featured Project')}
+      ${Modal.field('Display Order', Modal.input('m-order', data?.display_order ?? (Cache.projects.length + 1), 'number'))}
+    `, async () => {
+      const payload = {
+        title: val('m-title'), category: val('m-cat'), description: val('m-desc'),
+        icon: val('m-icon'), client: val('m-client') || null,
+        objective: val('m-objective') || null, results: val('m-results') || null,
+        tools: val('m-tools') || null, external_link: val('m-link') || null,
+        featured: document.getElementById('m-featured').checked,
+        display_order: +val('m-order'), active: true
+      };
+      if (!payload.title) throw new Error('Title is required');
+      const mid = val('m-id');
+      if (mid) await DB.update('projects', mid, payload);
+      else await DB.insert('projects', payload);
+      Toast.show(`Project ${mid ? 'updated' : 'added'} ✓`);
+    });
+  },
+  editProject(id) { Modal.openProject(id); },
+
+  // ---- Industry ----
+  openIndustry(id) {
+    const data = id ? Cache.industries.find(i => i.id === id) : null;
+    const title = data ? 'Edit Industry' : 'Add Industry';
+    Modal.render('industry-modal', title, `
+      <input type="hidden" id="m-id" value="${data?.id || ''}">
+      ${Modal.field('Industry Name', Modal.input('m-name', data?.name))}
+      ${Modal.field('Description', Modal.textarea('m-desc', data?.description))}
+      ${Modal.field('Icon (emoji)', Modal.input('m-icon', data?.icon || '🏢'))}
+      ${Modal.field('Features (one per line)', Modal.textarea('m-features', (data?.features || []).join('\n'), 4))}
+      ${Modal.field('Display Order', Modal.input('m-order', data?.display_order ?? (Cache.industries.length + 1), 'number'))}
+    `, async () => {
+      const payload = {
+        name: val('m-name'), description: val('m-desc'), icon: val('m-icon'),
+        features: val('m-features').split('\n').map(f => f.trim()).filter(Boolean),
+        display_order: +val('m-order'), active: true
+      };
+      if (!payload.name) throw new Error('Name is required');
+      const mid = val('m-id');
+      if (mid) await DB.update('industries', mid, payload);
+      else await DB.insert('industries', payload);
+      Toast.show(`Industry ${mid ? 'updated' : 'added'} ✓`);
+    });
+  },
+  editIndustry(id) { Modal.openIndustry(id); },
+
+  // ---- Pricing ----
+  openPricing(id) {
+    const data = id ? Cache.pricing.find(p => p.id === id) : null;
+    const title = data ? 'Edit Plan' : 'Add Pricing Plan';
+    Modal.render('pricing-modal', title, `
+      <input type="hidden" id="m-id" value="${data?.id || ''}">
+      ${Modal.field('Plan Name', Modal.input('m-name', data?.name))}
+      ${Modal.field('Price', Modal.input('m-price', data?.price, 'number'))}
+      ${Modal.field('Currency', Modal.input('m-currency', data?.currency || 'Rs'))}
+      ${Modal.field('Billing Interval', Modal.select('m-interval', [['month','Per Month'],['year','Per Year'],['one-time','One-time']], data?.interval || 'month'))}
+      ${Modal.field('Description', Modal.input('m-desc', data?.description))}
+      ${Modal.field('Features (JSON)', `<textarea id="m-features" rows="6" class="form-input w-full px-4 py-3 font-mono text-sm">${esc(JSON.stringify(data?.features || {}, null, 2))}</textarea><p class="text-xs text-gray-500 mt-1">e.g. {"posts":15,"graphics":5,"videos":0,"website":false}</p>`)}
+      ${Modal.field('Button Text', Modal.input('m-btn', data?.button_text || 'Get Started'))}
+      ${Modal.checkbox('m-popular', data?.is_popular, 'Mark as Popular')}
+      ${Modal.field('Display Order', Modal.input('m-order', data?.display_order ?? (Cache.pricing.length + 1), 'number'))}
+    `, async () => {
+      let features = {};
+      try { features = JSON.parse(val('m-features')); }
+      catch { throw new Error('Invalid JSON in Features field'); }
+      const payload = {
+        name: val('m-name'), price: +val('m-price'), currency: val('m-currency'),
+        interval: val('m-interval'), description: val('m-desc'), features,
+        button_text: val('m-btn'),
+        is_popular: document.getElementById('m-popular').checked,
+        display_order: +val('m-order'), active: true
+      };
+      if (!payload.name) throw new Error('Name is required');
+      const mid = val('m-id');
+      if (mid) await DB.update('pricing_plans', mid, payload);
+      else await DB.insert('pricing_plans', payload);
+      Toast.show(`Plan ${mid ? 'updated' : 'added'} ✓`);
+    });
+  },
+  editPricing(id) { Modal.openPricing(id); },
+
+  // ---- Addon ----
+  openAddon(id) {
+    const data = id ? Cache.addons.find(a => a.id === id) : null;
+    const title = data ? 'Edit Add-on' : 'Add Add-on';
+    Modal.render('addon-modal', title, `
+      <input type="hidden" id="m-id" value="${data?.id || ''}">
+      ${Modal.field('Name', Modal.input('m-name', data?.name))}
+      ${Modal.field('Description', Modal.input('m-desc', data?.description))}
+      ${Modal.field('Price (Rs)', Modal.input('m-price', data?.price, 'number'))}
+      ${Modal.field('Icon (emoji)', Modal.input('m-icon', data?.icon || '✨'))}
+      ${Modal.field('Price Text (e.g. per video)', Modal.input('m-ptext', data?.price_text))}
+      ${Modal.field('Display Order', Modal.input('m-order', data?.display_order ?? (Cache.addons.length + 1), 'number'))}
+    `, async () => {
+      const payload = {
+        name: val('m-name'), description: val('m-desc'),
+        price: +val('m-price'), icon: val('m-icon'),
+        price_text: val('m-ptext'), display_order: +val('m-order'), active: true
+      };
+      if (!payload.name) throw new Error('Name is required');
+      const mid = val('m-id');
+      if (mid) await DB.update('addons', mid, payload);
+      else await DB.insert('addons', payload);
+      Toast.show(`Add-on ${mid ? 'updated' : 'added'} ✓`);
+    });
+  },
+  editAddon(id) { Modal.openAddon(id); },
+
+  // ---- FAQ ----
+  openFaq(id) {
+    const data = id ? Cache.faqs.find(f => f.id === id) : null;
+    const title = data ? 'Edit FAQ' : 'Add FAQ';
+    Modal.render('faq-modal', title, `
+      <input type="hidden" id="m-id" value="${data?.id || ''}">
+      ${Modal.field('Question', Modal.input('m-question', data?.question))}
+      ${Modal.field('Answer', Modal.textarea('m-answer', data?.answer, 4))}
+      ${Modal.field('Category', Modal.select('m-cat', [['general','General'],['pricing','Pricing'],['services','Services'],['technical','Technical']], data?.category || 'general'))}
+      ${Modal.field('Display Order', Modal.input('m-order', data?.display_order ?? (Cache.faqs.length + 1), 'number'))}
+    `, async () => {
+      const payload = {
+        question: val('m-question'), answer: val('m-answer'),
+        category: val('m-cat'), display_order: +val('m-order'), active: true
+      };
+      if (!payload.question) throw new Error('Question is required');
+      const mid = val('m-id');
+      if (mid) await DB.update('faqs', mid, payload);
+      else await DB.insert('faqs', payload);
+      Toast.show(`FAQ ${mid ? 'updated' : 'added'} ✓`);
+    });
+  },
+  editFaq(id) { Modal.openFaq(id); }
+};
+
+// ============================================================
+// APP MODULE — navigation, boot
+// ============================================================
+const App = {
+  showLogin() {
+    document.getElementById('login-page').classList.remove('hidden');
+    document.getElementById('dashboard').classList.add('hidden');
+  },
+
+  showDashboard() {
+    document.getElementById('login-page').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+    if (Auth.user) {
+      setText('admin-name', Auth.user.name || 'Admin');
+      setText('admin-email', Auth.user.email || '');
+    }
+    App.switchSection('dashboard');
+    DB.loadAll().catch(err => Toast.show('Failed to load data: ' + err.message, 'error'));
+  },
+
+  switchSection(name) {
+    document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+    document.getElementById(`${name}-section`)?.classList.remove('hidden');
+    document.querySelector(`[data-section="${name}"]`)?.classList.add('active');
+  }
+};
+
+// ============================================================
+// GLOBAL HELPERS
+// ============================================================
+function val(id) { return (document.getElementById(id)?.value || '').trim(); }
+function setText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
+function esc(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function confirmDelete(table, id) {
+  if (!confirm('Are you sure? This cannot be undone.')) return;
+  try {
+    await DB.remove(table, id);
+    Toast.show('Deleted successfully');
+    await DB.loadAll();
+  } catch (err) {
+    Toast.show(err.message || 'Delete failed', 'error');
+  }
+}
+
+// ============================================================
+// EVENT LISTENERS
+// ============================================================
+
+// Login form
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-error');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in…';
+  err.classList.add('hidden');
+  try {
+    await Auth.login(
+      document.getElementById('login-email').value,
+      document.getElementById('login-password').value
+    );
+    App.showDashboard();
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+  }
+});
+
+// Logout
+document.getElementById('logout-btn').addEventListener('click', Auth.logout);
+
+// Sidebar navigation
+document.querySelectorAll('.sidebar-link').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    App.switchSection(link.dataset.section);
+  });
+});
+
+// Site settings form
+document.getElementById('site-settings-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = e.target.querySelector('[type=submit]');
+  btn.disabled = true;
+  try {
+    await DB.saveSettings({
+      hero_headline:   val('s-hero-headline'),
+      hero_subheading: val('s-hero-subheading'),
+      contact_email:   val('s-contact-email'),
+      contact_phone:   val('s-contact-phone'),
+      whatsapp_number: val('s-whatsapp'),
+    });
+    Toast.show('Settings saved ✓');
+  } catch (err) {
+    Toast.show(err.message || 'Save failed', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ============================================================
+// BOOT
+// ============================================================
+Auth.init();
+</script>
+</body>
+</html>
